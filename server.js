@@ -25,15 +25,25 @@ const allowList = [
 const vercelPreview = /^https:\/\/gcn-frontend-git-.*\.vercel\.app$/;
 
 const corsOptions = {
-  origin: (origin, callback) =>
-    !origin || allowList.includes(origin) || vercelPreview.test(origin)
-      ? callback(null, true)
-      : callback(new Error('CORS not allowed')),
-  credentials: true,
-  methods: ['GET','HEAD','PUT','PATCH','POST','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization'],
-  optionsSuccessStatus: 204
-};
+    origin: (origin, callback) => {
+      // allow localhost, your prod URL, or anything under .vercel.app
+      if (
+        !origin ||
+        origin === 'http://localhost:5173' ||
+        origin === 'https://gcn-frontend-ten.vercel.app' ||
+        origin.endsWith('.vercel.app')
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error('CORS not allowed'));
+      }
+    },
+    credentials: true,
+    methods: ['GET','HEAD','PUT','PATCH','POST','DELETE','OPTIONS'],
+    allowedHeaders: ['Content-Type','Authorization'],
+    optionsSuccessStatus: 204
+  };
+  
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions)); // pre-flight
