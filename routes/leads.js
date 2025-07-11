@@ -5,8 +5,8 @@ const router = express.Router();
 
 /* ───── GET /api/leads ─────
    Query:  user (string, required), limit (number, default 10, max 100)
-   1) Claim up to `limit` leads with no assignedTo
-   2) Return that user’s assigned leads (up to `limit`), newest first
+   1) Claim up to `limit` unassigned leads for this user
+   2) Return _all_ of that user’s assigned leads (newest first)
 ──────────────────────────── */
 router.get('/', async (req, res) => {
   const { user, limit = 10 } = req.query;
@@ -14,23 +14,28 @@ router.get('/', async (req, res) => {
   const lim = Math.min(Number(limit) || 10, 100);
 
   try {
-    // 1️⃣ Claim unassigned
-    const unclaimed = await Lead.find({ assignedTo: { $exists: false } })
-      .select('_id')
-      .limit(lim)
-      .lean();
+    // 1️⃣ Count how many leads this user already has
+    const assignedCount = await Lead.countDocuments({ assignedTo: user });
 
-    if (unclaimed.length) {
-      await Lead.updateMany(
-        { _id: { $in: unclaimed.map(d => d._id) } },
-        { $set: { assignedTo: user } }
-      );
+    // 2️⃣ If under their limit, claim more unassigned leads up to `lim`
+    if (assignedCount < lim) {
+      const toAssign = lim - assignedCount;
+      const unclaimed = await Lead.find({ assignedTo: { $exists: false } })
+        .select('_id')
+        .limit(toAssign)
+        .lean();
+
+      if (unclaimed.length > 0) {
+        await Lead.updateMany(
+          { _id: { $in: unclaimed.map(d => d._id) } },
+          { $set: { assignedTo: user } }
+        );
+      }
     }
 
-    // 2️⃣ Fetch this user’s batch
+    // 3️⃣ Fetch and return _all_ leads assigned to this user (no limit)
     const leads = await Lead.find({ assignedTo: user })
-      .sort({ timestamp: -1 })
-      .limit(lim);
+      .sort({ timestamp: -1 });
 
     res.json(leads);
   } catch (err) {
